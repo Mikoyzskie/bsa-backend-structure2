@@ -2,17 +2,13 @@ var express = require("express");
 var knex = require("knex");
 var jwt = require("jsonwebtoken");
 var joi = require("joi");
-var ee = require("events");
-
 var dbConfig = require("./knexfile");
-var app = express();
 
-var port = 4066;
-
-var statEmitter = new ee();
-
+const { statEmitter } = require("./src/eventsEmitter");
 const statsRoutes = require("./src/routes/statsRoutes");
 
+var app = express();
+var port = 4066;
 var stats = {
   totalUsers: 3,
   totalBets: 1,
@@ -569,8 +565,6 @@ app.put("/events/:id", (req, res) => {
 });
 app.set("stats", stats);
 app.use("/stats", statsRoutes);
-
-app.getDb = () => db;
 
 const server = app.listen(port, () => {
   statEmitter.on("newUser", () => {

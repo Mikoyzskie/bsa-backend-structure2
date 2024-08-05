@@ -1,5 +1,4 @@
 const authService = require("../services/authService");
-const statsService = require("../services/statsService");
 
 exports.getStats = async (req, res) => {
   try {
