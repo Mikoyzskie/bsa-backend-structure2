@@ -6,9 +6,11 @@ var ee = require("events");
 
 const authMiddleware = require("./middlewares/authMiddleware");
 
-const userSchema = require("./schema/userSchema");
+const { getUserByIdSchema } = require("./schema/userSchema");
 
-const { getUserById } = require("./services/userService");
+const { errorTest } = require("./errorHandler");
+
+// const { getUserById } = require("./services/userService");
 
 var dbConfig = require("./knexfile");
 var app = express();
@@ -38,33 +40,33 @@ app.get("/health", (req, res) => {
   res.send("Hello World!");
 });
 
-app.get("/user/", getUserById);
+// app.get("/user/", getUserById);
 
-// app.get("/users/:id", (req, res) => {
-//   try {
-//     var isValidResult = userSchema.getByUserByIdSchema.validate(req.params);
-//     if (isValidResult.error) {
-//       res.status(400).send({ error: isValidResult.error.details[0].message });
-//       return;
-//     }
-//     db("user")
-//       .where("id", req.params.id)
-//       .returning("*")
-//       .then(([result]) => {
-//         if (!result) {
-//           res.status(404).send({ error: "User not found" });
-//           return;
-//         }
-//         return res.send({
-//           ...result,
-//         });
-//       });
-//   } catch (err) {
-//     console.log(err);
-//     res.status(500).send("Internal Server Error");
-//     return;
-//   }
-// });
+app.get("/users/:id", (req, res) => {
+  try {
+    var isValidResult = getUserByIdSchema.validate(req.params);
+    if (isValidResult.error) {
+      res.status(400).send({ error: isValidResult.error.details[0].message });
+      return;
+    }
+    db("user")
+      .where("id", req.params.id)
+      .returning("*")
+      .then(([result]) => {
+        if (!result) {
+          res.status(404).send({ error: "User not found" });
+          return;
+        }
+        return res.send({
+          ...result,
+        });
+      });
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Internal Server Error");
+    return;
+  }
+});
 
 app.post("/users", (req, res) => {
   var schema = joi
