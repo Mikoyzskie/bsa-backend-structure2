@@ -2,23 +2,29 @@ var express = require("express");
 var knex = require("knex");
 var jwt = require("jsonwebtoken");
 var joi = require("joi");
+var ee = require("events");
+
+const authMiddleware = require("./middlewares/authMiddleware");
+
+const userSchema = require("./schema/userSchema");
+
+const { getUserById } = require("./services/userService");
+
 var dbConfig = require("./knexfile");
-
-const { statEmitter } = require("./src/eventsEmitter");
-const statsRoutes = require("./src/routes/statsRoutes");
-
 var app = express();
+
 var port = 4066;
+
+var statEmitter = new ee();
 var stats = {
   totalUsers: 3,
   totalBets: 1,
   totalEvents: 1,
 };
 
-var db;
+var db = knex(dbConfig.development);
 app.use(express.json());
 app.use((uselessRequest, uselessResponse, neededNext) => {
-  db = knex(dbConfig.development);
   db.raw("select 1+1 as result")
     .then(function () {
       neededNext();
@@ -32,36 +38,33 @@ app.get("/health", (req, res) => {
   res.send("Hello World!");
 });
 
-app.get("/users/:id", (req, res) => {
-  try {
-    var schema = joi
-      .object({
-        id: joi.string().uuid(),
-      })
-      .required();
-    var isValidResult = schema.validate(req.params);
-    if (isValidResult.error) {
-      res.status(400).send({ error: isValidResult.error.details[0].message });
-      return;
-    }
-    db("user")
-      .where("id", req.params.id)
-      .returning("*")
-      .then(([result]) => {
-        if (!result) {
-          res.status(404).send({ error: "User not found" });
-          return;
-        }
-        return res.send({
-          ...result,
-        });
-      });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
-    return;
-  }
-});
+app.get("/user/", getUserById);
+
+// app.get("/users/:id", (req, res) => {
+//   try {
+//     var isValidResult = userSchema.getByUserByIdSchema.validate(req.params);
+//     if (isValidResult.error) {
+//       res.status(400).send({ error: isValidResult.error.details[0].message });
+//       return;
+//     }
+//     db("user")
+//       .where("id", req.params.id)
+//       .returning("*")
+//       .then(([result]) => {
+//         if (!result) {
+//           res.status(404).send({ error: "User not found" });
+//           return;
+//         }
+//         return res.send({
+//           ...result,
+//         });
+//       });
+//   } catch (err) {
+//     console.log(err);
+//     res.status(500).send("Internal Server Error");
+//     return;
+//   }
+// });
 
 app.post("/users", (req, res) => {
   var schema = joi
@@ -563,13 +566,12 @@ app.put("/events/:id", (req, res) => {
     return;
   }
 });
+
 app.set("stats", stats);
-app.use("/stats", statsRoutes);
+app.get("/stats", authMiddleware.authMiddleware);
 
 const server = app.listen(port, () => {
   statEmitter.on("newUser", () => {
-    console.log("received");
-
     stats.totalUsers++;
   });
   statEmitter.on("newBet", () => {
