@@ -42,31 +42,30 @@ app.get("/health", (req, res) => {
 
 // app.get("/user/", getUserById);
 
-app.get("/users/:id", (req, res) => {
+function validateSchema(req, res, next) {
+  const { error } = getUserByIdSchema.validate(req.params);
+  if (error) {
+    return res.status(400).send({ error: error.details[0].message });
+  }
+  next();
+}
+
+async function dbFunction(req, res, next) {
   try {
-    var isValidResult = getUserByIdSchema.validate(req.params);
-    if (isValidResult.error) {
-      res.status(400).send({ error: isValidResult.error.details[0].message });
-      return;
+    const [user] = await db("user").where("id", req.params.id).returning("*");
+    if (!user) {
+      return res.status(404).send({ error: "User not found" });
     }
-    db("user")
-      .where("id", req.params.id)
-      .returning("*")
-      .then(([result]) => {
-        if (!result) {
-          res.status(404).send({ error: "User not found" });
-          return;
-        }
-        return res.send({
-          ...result,
-        });
-      });
-  } catch (err) {
+    return res.send({ ...user });
+  } catch (error) {
     console.log(err);
     res.status(500).send("Internal Server Error");
     return;
   }
-});
+}
+
+const someStuff = [validateSchema, dbFunction];
+app.get("/users/:id", someStuff);
 
 app.post("/users", (req, res) => {
   var schema = joi
