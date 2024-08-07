@@ -4,13 +4,17 @@ var jwt = require("jsonwebtoken");
 var joi = require("joi");
 var ee = require("events");
 
+const Router = express.Router();
+
 const authMiddleware = require("./middlewares/authMiddleware");
 
 const { getUserByIdSchema } = require("./schema/userSchema");
 
 const { errorTest } = require("./errorHandler");
 
-// const { getUserById } = require("./services/userService");
+const UserRepository = require("./repositories/user/user.repository");
+
+const { initApi } = require("./controllers/controller");
 
 var dbConfig = require("./knexfile");
 var app = express();
@@ -40,32 +44,34 @@ app.get("/health", (req, res) => {
   res.send("Hello World!");
 });
 
+app.use("/", initApi(Router));
+
 // app.get("/user/", getUserById);
 
-function validateSchema(req, res, next) {
-  const { error } = getUserByIdSchema.validate(req.params);
-  if (error) {
-    return res.status(400).send({ error: error.details[0].message });
-  }
-  next();
-}
+// function validateSchema(req, res, next) {
+//   const { error } = getUserByIdSchema.validate(req.params);
+//   if (error) {
+//     return res.status(400).send({ error: error.details[0].message });
+//   }
+//   next();
+// }
 
-async function dbFunction(req, res, next) {
-  try {
-    const [user] = await db("user").where("id", req.params.id).returning("*");
-    if (!user) {
-      return res.status(404).send({ error: "User not found" });
-    }
-    return res.send({ ...user });
-  } catch (error) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
-    return;
-  }
-}
+// async function dbFunction(req, res, next) {
+//   try {
+//     const user = await db("user").where("id", req.params.id).returning("*");
+//     if (!user) {
+//       return res.status(404).send({ error: "User not found" });
+//     }
+//     return res.send({ ...user });
+//   } catch (error) {
+//     console.log(err);
+//     res.status(500).send("Internal Server Error");
+//     return;
+//   }
+// }
 
-const someStuff = [validateSchema, dbFunction];
-app.get("/users/:id", someStuff);
+// const someStuff = [validateSchema, dbFunction];
+// app.get("/users/:id", someStuff);
 
 app.post("/users", (req, res) => {
   var schema = joi
@@ -568,8 +574,32 @@ app.put("/events/:id", (req, res) => {
   }
 });
 
-app.set("stats", stats);
-app.get("/stats", authMiddleware.authMiddleware);
+// app.set("stats", stats);
+// app.get("/stats", authMiddleware.authMiddleware);
+
+app.get("/stats", (req, res) => {
+  try {
+    var ak = "authorization";
+    let token = req.headers[ak];
+    if (!token) {
+      return res.status(401).send({ error: "Not Authorized" });
+    }
+    token = token.replace("Bearer ", "");
+    try {
+      var tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
+      if (tokenPayload.type != "admin") {
+        throw new Error();
+      }
+    } catch (err) {
+      return res.status(401).send({ error: "Not Authorized" });
+    }
+    res.send(stats);
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Internal Server Error");
+    return;
+  }
+});
 
 const server = app.listen(port, () => {
   statEmitter.on("newUser", () => {

@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-const authMiddleware = (req, res) => {
+const authMiddleware = async (req, res, next) => {
   try {
     var ak = "authorization";
     let token = req.headers[ak];
@@ -16,8 +16,9 @@ const authMiddleware = (req, res) => {
     } catch (err) {
       return res.status(401).send({ error: "Not Authorized" });
     }
-    const stats = req.app.get("stats");
-    res.send(stats);
+    // const stats = req.app.get("stats");
+    // res.send(stats);
+    next();
   } catch (err) {
     console.log(err);
     res.status(500).send("Internal Server Error");
