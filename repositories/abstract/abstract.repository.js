@@ -9,6 +9,10 @@ class AbstractRepository {
 
     return { ...users };
   }
+
+  create(data) {
+    return this.db(this.model).insert(data).returning("*");
+  }
 }
 
 module.exports = { AbstractRepository };

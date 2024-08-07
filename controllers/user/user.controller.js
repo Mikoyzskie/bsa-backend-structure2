@@ -1,18 +1,17 @@
-const { getUserByIdSchema } = require("../../schema/userSchema");
+var ee = require("events");
+var statEmitter = new ee();
+const jwt = require("jsonwebtoken");
 
-function validateSchema(req, res, next) {
-  const { error } = getUserByIdSchema.validate(req.params);
-  if (error) {
-    return res.status(400).send({ error: error.details[0].message });
-  }
-  next();
-}
+const {
+  validateUserId,
+  validateUserCreate,
+} = require("../../middlewares/validations/user.validation");
 
 const initUser = (Router, services) => {
   const { userService } = services;
   const router = Router;
 
-  router.get("/:id", validateSchema, (req, res, next) =>
+  router.get("/:id", validateUserId, (req, res, next) =>
     userService
       .getUserById(req.params.id)
       .then((data) => {

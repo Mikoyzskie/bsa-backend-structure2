@@ -6,15 +6,17 @@ var ee = require("events");
 
 const Router = express.Router();
 
-const authMiddleware = require("./middlewares/authMiddleware");
-
-const { getUserByIdSchema } = require("./schema/userSchema");
-
-const { errorTest } = require("./errorHandler");
-
-const UserRepository = require("./repositories/user/user.repository");
-
 const { initApi } = require("./controllers/controller");
+
+const {
+  authMiddleware,
+  authMiddlewareAdmin,
+} = require("./middlewares/authMiddleware");
+
+const { betValidation } = require("./middlewares/validations/bet.validation");
+const {
+  validateUserUpdate,
+} = require("./middlewares/validations/user.validation");
 
 var dbConfig = require("./knexfile");
 var app = express();
@@ -45,33 +47,6 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/", initApi(Router));
-
-// app.get("/user/", getUserById);
-
-// function validateSchema(req, res, next) {
-//   const { error } = getUserByIdSchema.validate(req.params);
-//   if (error) {
-//     return res.status(400).send({ error: error.details[0].message });
-//   }
-//   next();
-// }
-
-// async function dbFunction(req, res, next) {
-//   try {
-//     const user = await db("user").where("id", req.params.id).returning("*");
-//     if (!user) {
-//       return res.status(404).send({ error: "User not found" });
-//     }
-//     return res.send({ ...user });
-//   } catch (error) {
-//     console.log(err);
-//     res.status(500).send("Internal Server Error");
-//     return;
-//   }
-// }
-
-// const someStuff = [validateSchema, dbFunction];
-// app.get("/users/:id", someStuff);
 
 app.post("/users", (req, res) => {
   var schema = joi
@@ -122,18 +97,18 @@ app.post("/users", (req, res) => {
     });
 });
 
-app.put("/users/:id", (req, res) => {
-  let token = req.headers[`authorization`];
-  let tokenPayload;
-  if (!token) {
-    return res.status(401).send({ error: "Not Authorized" });
-  }
-  token = token.replace("Bearer ", "");
-  try {
-    tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-  } catch (err) {
-    return res.status(401).send({ error: "Not Authorized" });
-  }
+app.put("/users/:id", authMiddleware, (req, res) => {
+  // let token = req.headers[`authorization`];
+  // let tokenPayload;
+  // if (!token) {
+  //   return res.status(401).send({ error: "Not Authorized" });
+  // }
+  // token = token.replace("Bearer ", "");
+  // try {
+  //   tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
+  // } catch (err) {
+  //   return res.status(401).send({ error: "Not Authorized" });
+  // }
   var schema = joi
     .object({
       email: joi.string().email(),
@@ -147,7 +122,7 @@ app.put("/users/:id", (req, res) => {
     res.status(400).send({ error: isValidResult.error.details[0].message });
     return;
   }
-  if (req.params.id !== tokenPayload.id) {
+  if (req.params.id !== req.tokenPayload.id) {
     return res.status(401).send({ error: "UserId mismatch" });
   }
   db("user")
@@ -350,21 +325,7 @@ app.post("/events", (req, res) => {
   }
 });
 
-app.post("/bets", (req, res) => {
-  var schema = joi
-    .object({
-      id: joi.string().uuid(),
-      eventId: joi.string().uuid().required(),
-      betAmount: joi.number().min(1).required(),
-      prediction: joi.string().valid("w1", "w2", "x").required(),
-    })
-    .required();
-  var isValidResult = schema.validate(req.body);
-  if (isValidResult.error) {
-    res.status(400).send({ error: isValidResult.error.details[0].message });
-    return;
-  }
-
+app.post("/bets", betValidation, (req, res) => {
   let userId;
   try {
     var authorizationKey = "authorization";
@@ -574,25 +535,8 @@ app.put("/events/:id", (req, res) => {
   }
 });
 
-// app.set("stats", stats);
-// app.get("/stats", authMiddleware.authMiddleware);
-
-app.get("/stats", (req, res) => {
+app.get("/stats", authMiddlewareAdmin, (req, res) => {
   try {
-    var ak = "authorization";
-    let token = req.headers[ak];
-    if (!token) {
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-    token = token.replace("Bearer ", "");
-    try {
-      var tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-      if (tokenPayload.type != "admin") {
-        throw new Error();
-      }
-    } catch (err) {
-      return res.status(401).send({ error: "Not Authorized" });
-    }
     res.send(stats);
   } catch (err) {
     console.log(err);
