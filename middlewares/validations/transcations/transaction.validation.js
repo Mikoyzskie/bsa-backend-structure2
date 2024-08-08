@@ -3,11 +3,19 @@ const {
 } = require("../../../schema/transactionSchema");
 
 const validateTransactionCreate = (req, res, next) => {
-  const { error } = createTransactionSchema.validate(req.body);
-  if (error) {
-    return res.status(400).send({ error: error.details[0].message });
+  var schema = joi
+    .object({
+      id: joi.string().uuid(),
+      userId: joi.string().uuid().required(),
+      cardNumber: joi.string().required(),
+      amount: joi.number().min(0).required(),
+    })
+    .required();
+  var isValidResult = schema.validate(req.body);
+  if (isValidResult.error) {
+    res.status(400).send({ error: isValidResult.error.details[0].message });
+    return;
   }
-  next();
 };
 
 module.exports = { validateTransactionCreate };

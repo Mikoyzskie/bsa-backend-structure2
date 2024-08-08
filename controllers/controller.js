@@ -1,11 +1,14 @@
 const { initUser } = require("./user/user.controller");
-const { userService } = require("../services/services");
+const { initTransactions } = require("./transactions/transaction.controller");
+const { userService, transactionService } = require("../services/services");
+
 var express = require("express");
 
 const initApi = (Router) => {
   const apiRouter = express.Router();
 
   apiRouter.use("/users", initUser(Router, { userService }));
+  // apiRouter.use("/transactions", initTransactions(Router));
 
   return apiRouter;
 };

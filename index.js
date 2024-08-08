@@ -43,36 +43,6 @@ app.get("/health", (req, res) => {
 
 app.use("/", initApi(Router));
 
-// app.put(
-//   "/users/:id",
-//   authMiddleware,
-//   UserValidation.validateUserUpdate,
-//   (req, res, next) => {
-//     if (req.params.id !== req.tokenPayload.id) {
-//       return res.status(401).send({ error: "UserId mismatch" });
-//     }
-//     db("user")
-//       .where("id", req.params.id)
-//       .update(req.body)
-//       .returning("*")
-//       .then(([result]) => {
-//         return res.send({
-//           ...result,
-//         });
-//       })
-//       .catch((err) => {
-//         if (err.code == "23505") {
-//           console.log(err);
-//           res.status(400).send({
-//             error: err.detail,
-//           });
-//           return;
-//         }
-//         next;
-//       });
-//   }
-// );
-
 app.post(
   "/transactions",
   TransactionValidation.validateTransactionCreate,
