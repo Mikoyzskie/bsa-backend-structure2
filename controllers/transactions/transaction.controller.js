@@ -1,6 +1,6 @@
 const {
   validateTransactionCreate,
-} = require("../../middlewares/validations/transcations/transaction.validation");
+} = require("../../middlewares/validations/transactions/transaction.validation");
 
 const { statEmitter } = require("../../db/db");
 const {

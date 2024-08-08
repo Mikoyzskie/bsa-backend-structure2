@@ -1,7 +1,7 @@
 var express = require("express");
 
-// var jwt = require("jsonwebtoken");
-// var joi = require("joi");
+var jwt = require("jsonwebtoken");
+var joi = require("joi");
 const ee = require("events");
 
 const Router = express.Router();
