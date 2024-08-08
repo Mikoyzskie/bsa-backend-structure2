@@ -13,6 +13,18 @@ class AbstractRepository {
   create(data) {
     return this.db(this.model).insert(data).returning("*");
   }
+
+  async updateById(id, data) {
+    const result = await this.db(this.model)
+      .where({ id })
+      .update({
+        ...data,
+        updated_at: new Date(),
+      })
+      .returning("*");
+
+    return result;
+  }
 }
 
 module.exports = { AbstractRepository };
