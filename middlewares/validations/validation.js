@@ -1,16 +1,11 @@
-class ValidationMiddleware {
-  constructor({ schema, content }) {
-    this.schema = schema;
-    this.content = content;
-  }
+const EventValidation = require("../validations/events/event.validation");
+const BetValidation = require("../validations/bets/bet.validation");
+const TransactionValidation = require("../validations/transcations/transaction.validation");
+const UserValidation = require("../validations/users/user.validation");
 
-  validateSchema(req, res, next) {
-    const { error } = this.schema.validate(this.content);
-    if (error) {
-      return res.status(400).send({ error: error.details[0].message });
-    }
-    next();
-  }
-}
-
-module.exports = new ValidationMiddleware();
+module.exports = {
+  EventValidation,
+  BetValidation,
+  TransactionValidation,
+  UserValidation,
+};

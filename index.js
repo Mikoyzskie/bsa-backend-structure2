@@ -13,17 +13,12 @@ const {
   authMiddlewareAdmin,
 } = require("./middlewares/authMiddleware");
 
-const { betValidation } = require("./middlewares/validations/bet.validation");
 const {
-  validateTransactionCreate,
-} = require("./middlewares/validations/transaction.validation");
-const {
-  validateUserUpdate,
-} = require("./middlewares/validations/user.validation");
-const {
-  validateEventCreate,
-  validateEventUpdate,
-} = require("./middlewares/validations/event.validation");
+  EventValidation,
+  BetValidation,
+  TransactionValidation,
+  UserValidation,
+} = require("./middlewares/validations/validation");
 
 var dbConfig = require("./knexfile");
 var app = express();
@@ -55,7 +50,7 @@ app.get("/health", (req, res) => {
 
 app.use("/", initApi(Router));
 
-app.post("/users", (req, res) => {
+app.post("/users", (req, res, next) => {
   var schema = joi
     .object({
       id: joi.string().uuid(),
@@ -99,43 +94,45 @@ app.post("/users", (req, res) => {
         });
         return;
       }
-      res.status(500).send("Internal Server Error");
-      return;
+      next;
     });
 });
 
-app.put("/users/:id", authMiddleware, validateUserUpdate, (req, res) => {
-  if (req.params.id !== req.tokenPayload.id) {
-    return res.status(401).send({ error: "UserId mismatch" });
-  }
-  db("user")
-    .where("id", req.params.id)
-    .update(req.body)
-    .returning("*")
-    .then(([result]) => {
-      return res.send({
-        ...result,
-      });
-    })
-    .catch((err) => {
-      if (err.code == "23505") {
-        console.log(err);
-        res.status(400).send({
-          error: err.detail,
+app.put(
+  "/users/:id",
+  authMiddleware,
+  UserValidation.validateUserUpdate,
+  (req, res, next) => {
+    if (req.params.id !== req.tokenPayload.id) {
+      return res.status(401).send({ error: "UserId mismatch" });
+    }
+    db("user")
+      .where("id", req.params.id)
+      .update(req.body)
+      .returning("*")
+      .then(([result]) => {
+        return res.send({
+          ...result,
         });
-        return;
-      }
-      console.log(err);
-      res.status(500).send("Internal Server Error");
-      return;
-    });
-});
+      })
+      .catch((err) => {
+        if (err.code == "23505") {
+          console.log(err);
+          res.status(400).send({
+            error: err.detail,
+          });
+          return;
+        }
+        next;
+      });
+  }
+);
 
 app.post(
   "/transactions",
-  validateTransactionCreate,
+  TransactionValidation.validateTransactionCreate,
   authMiddlewareAdmin,
-  (req, res) => {
+  (req, res, next) => {
     db("user")
       .where("id", req.body.userId)
       .then(([user]) => {
@@ -175,219 +172,40 @@ app.post(
           });
       })
       .catch((err) => {
-        res.status(500).send("Internal Server Error");
-        return;
+        next;
       });
   }
 );
 
-app.post("/events", validateEventCreate, authMiddlewareAdmin, (req, res) => {
-  try {
-    req.body.odds.home_win = req.body.odds.homeWin;
-    delete req.body.odds.homeWin;
-    req.body.odds.away_win = req.body.odds.awayWin;
-    delete req.body.odds.awayWin;
-    db("odds")
-      .insert(req.body.odds)
-      .returning("*")
-      .then(([odds]) => {
-        delete req.body.odds;
-        req.body.away_team = req.body.awayTeam;
-        req.body.home_team = req.body.homeTeam;
-        req.body.start_at = req.body.startAt;
-        delete req.body.awayTeam;
-        delete req.body.homeTeam;
-        delete req.body.startAt;
-        db("event")
-          .insert({
-            ...req.body,
-            odds_id: odds.id,
-          })
-          .returning("*")
-          .then(([event]) => {
-            statEmitter.emit("newEvent");
-            [
-              "bet_amount",
-              "event_id",
-              "away_team",
-              "home_team",
-              "odds_id",
-              "start_at",
-              "updated_at",
-              "created_at",
-            ].forEach((whatakey) => {
-              var index = whatakey.indexOf("_");
-              var newKey = whatakey.replace("_", "");
-              newKey = newKey.split("");
-              newKey[index] = newKey[index].toUpperCase();
-              newKey = newKey.join("");
-              event[newKey] = event[whatakey];
-              delete event[whatakey];
-            });
-            ["home_win", "away_win", "created_at", "updated_at"].forEach(
-              (whatakey) => {
-                var index = whatakey.indexOf("_");
-                var newKey = whatakey.replace("_", "");
-                newKey = newKey.split("");
-                newKey[index] = newKey[index].toUpperCase();
-                newKey = newKey.join("");
-                odds[newKey] = odds[whatakey];
-                delete odds[whatakey];
-              }
-            );
-            return res.send({
-              ...event,
-              odds,
-            });
-          });
-      });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
-    return;
-  }
-});
-
-app.post("/bets", betValidation, authMiddleware, (req, res) => {
-  let userId = req.tokenPayload.id;
-  try {
-    req.body.event_id = req.body.eventId;
-    req.body.bet_amount = req.body.betAmount;
-    delete req.body.eventId;
-    delete req.body.betAmount;
-    req.body.user_id = userId;
-    db.select()
-      .table("user")
-      .then((users) => {
-        var user = users.find((u) => u.id == userId);
-        if (!user) {
-          res.status(400).send({ error: "User does not exist" });
-          return;
-        }
-        if (+user.balance < +req.body.bet_amount) {
-          return res.status(400).send({ error: "Not enough balance" });
-        }
-        db("event")
-          .where("id", req.body.event_id)
-          .then(([event]) => {
-            if (!event) {
-              return res.status(404).send({ error: "Event not found" });
-            }
-            db("odds")
-              .where("id", event.odds_id)
-              .then(([odds]) => {
-                if (!odds) {
-                  return res.status(404).send({ error: "Odds not found" });
-                }
-                let multiplier;
-                switch (req.body.prediction) {
-                  case "w1":
-                    multiplier = odds.home_win;
-                    break;
-                  case "w2":
-                    multiplier = odds.away_win;
-                    break;
-                  case "x":
-                    multiplier = odds.draw;
-                    break;
-                }
-                db("bet")
-                  .insert({
-                    ...req.body,
-                    multiplier,
-                    event_id: event.id,
-                  })
-                  .returning("*")
-                  .then(([bet]) => {
-                    var currentBalance = user.balance - req.body.bet_amount;
-                    db("user")
-                      .where("id", userId)
-                      .update({
-                        balance: currentBalance,
-                      })
-                      .then(() => {
-                        statEmitter.emit("newBet");
-                        [
-                          "bet_amount",
-                          "event_id",
-                          "away_team",
-                          "home_team",
-                          "odds_id",
-                          "start_at",
-                          "updated_at",
-                          "created_at",
-                          "user_id",
-                        ].forEach((whatakey) => {
-                          var index = whatakey.indexOf("_");
-                          var newKey = whatakey.replace("_", "");
-                          newKey = newKey.split("");
-                          newKey[index] = newKey[index].toUpperCase();
-                          newKey = newKey.join("");
-                          bet[newKey] = bet[whatakey];
-                          delete bet[whatakey];
-                        });
-                        return res.send({
-                          ...bet,
-                          currentBalance: currentBalance,
-                        });
-                      });
-                  });
-              });
-          });
-      });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
-    return;
-  }
-});
-
-app.put("/events/:id", validateEventUpdate, authMiddlewareAdmin, (req, res) => {
-  try {
-    var eventId = req.params.id;
-
-    db("bet")
-      .where("event_id", eventId)
-      .andWhere("win", null)
-      .then((bets) => {
-        var [w1, w2] = req.body.score.split(":");
-        let result;
-        if (+w1 > +w2) {
-          result = "w1";
-        } else if (+w2 > +w1) {
-          result = "w2";
-        } else {
-          result = "x";
-        }
-        db("event")
-          .where("id", eventId)
-          .update({ score: req.body.score })
-          .returning("*")
-          .then(([event]) => {
-            Promise.all(
-              bets.map((bet) => {
-                if (bet.prediction == result) {
-                  db("bet").where("id", bet.id).update({
-                    win: true,
-                  });
-                  db("user")
-                    .where("id", bet.user_id)
-                    .then(([user]) => {
-                      return db("user")
-                        .where("id", bet.user_id)
-                        .update({
-                          balance:
-                            user.balance + bet.bet_amount * bet.multiplier,
-                        });
-                    });
-                } else if (bet.prediction != result) {
-                  return db("bet").where("id", bet.id).update({
-                    win: false,
-                  });
-                }
-              })
-            );
-            setTimeout(() => {
+app.post(
+  "/events",
+  EventValidation.validateEventCreate,
+  authMiddlewareAdmin,
+  (req, res, next) => {
+    try {
+      req.body.odds.home_win = req.body.odds.homeWin;
+      delete req.body.odds.homeWin;
+      req.body.odds.away_win = req.body.odds.awayWin;
+      delete req.body.odds.awayWin;
+      db("odds")
+        .insert(req.body.odds)
+        .returning("*")
+        .then(([odds]) => {
+          delete req.body.odds;
+          req.body.away_team = req.body.awayTeam;
+          req.body.home_team = req.body.homeTeam;
+          req.body.start_at = req.body.startAt;
+          delete req.body.awayTeam;
+          delete req.body.homeTeam;
+          delete req.body.startAt;
+          db("event")
+            .insert({
+              ...req.body,
+              odds_id: odds.id,
+            })
+            .returning("*")
+            .then(([event]) => {
+              statEmitter.emit("newEvent");
               [
                 "bet_amount",
                 "event_id",
@@ -406,25 +224,216 @@ app.put("/events/:id", validateEventUpdate, authMiddlewareAdmin, (req, res) => {
                 event[newKey] = event[whatakey];
                 delete event[whatakey];
               });
-              res.send(event);
-            }, 1000);
-          });
-      });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
-    return;
+              ["home_win", "away_win", "created_at", "updated_at"].forEach(
+                (whatakey) => {
+                  var index = whatakey.indexOf("_");
+                  var newKey = whatakey.replace("_", "");
+                  newKey = newKey.split("");
+                  newKey[index] = newKey[index].toUpperCase();
+                  newKey = newKey.join("");
+                  odds[newKey] = odds[whatakey];
+                  delete odds[whatakey];
+                }
+              );
+              return res.send({
+                ...event,
+                odds,
+              });
+            });
+        });
+    } catch (err) {
+      next;
+    }
   }
-});
+);
 
-app.get("/stats", authMiddlewareAdmin, (req, res) => {
+app.post(
+  "/bets",
+  BetValidation.betValidation,
+  authMiddleware,
+  (req, res, next) => {
+    let userId = req.tokenPayload.id;
+    try {
+      req.body.event_id = req.body.eventId;
+      req.body.bet_amount = req.body.betAmount;
+      delete req.body.eventId;
+      delete req.body.betAmount;
+      req.body.user_id = userId;
+      db.select()
+        .table("user")
+        .then((users) => {
+          var user = users.find((u) => u.id == userId);
+          if (!user) {
+            res.status(400).send({ error: "User does not exist" });
+            return;
+          }
+          if (+user.balance < +req.body.bet_amount) {
+            return res.status(400).send({ error: "Not enough balance" });
+          }
+          db("event")
+            .where("id", req.body.event_id)
+            .then(([event]) => {
+              if (!event) {
+                return res.status(404).send({ error: "Event not found" });
+              }
+              db("odds")
+                .where("id", event.odds_id)
+                .then(([odds]) => {
+                  if (!odds) {
+                    return res.status(404).send({ error: "Odds not found" });
+                  }
+                  let multiplier;
+                  switch (req.body.prediction) {
+                    case "w1":
+                      multiplier = odds.home_win;
+                      break;
+                    case "w2":
+                      multiplier = odds.away_win;
+                      break;
+                    case "x":
+                      multiplier = odds.draw;
+                      break;
+                  }
+                  db("bet")
+                    .insert({
+                      ...req.body,
+                      multiplier,
+                      event_id: event.id,
+                    })
+                    .returning("*")
+                    .then(([bet]) => {
+                      var currentBalance = user.balance - req.body.bet_amount;
+                      db("user")
+                        .where("id", userId)
+                        .update({
+                          balance: currentBalance,
+                        })
+                        .then(() => {
+                          statEmitter.emit("newBet");
+                          [
+                            "bet_amount",
+                            "event_id",
+                            "away_team",
+                            "home_team",
+                            "odds_id",
+                            "start_at",
+                            "updated_at",
+                            "created_at",
+                            "user_id",
+                          ].forEach((whatakey) => {
+                            var index = whatakey.indexOf("_");
+                            var newKey = whatakey.replace("_", "");
+                            newKey = newKey.split("");
+                            newKey[index] = newKey[index].toUpperCase();
+                            newKey = newKey.join("");
+                            bet[newKey] = bet[whatakey];
+                            delete bet[whatakey];
+                          });
+                          return res.send({
+                            ...bet,
+                            currentBalance: currentBalance,
+                          });
+                        });
+                    });
+                });
+            });
+        });
+    } catch (err) {
+      next;
+    }
+  }
+);
+
+app.put(
+  "/events/:id",
+  EventValidation.validateEventUpdate,
+  authMiddlewareAdmin,
+  (req, res, next) => {
+    try {
+      var eventId = req.params.id;
+
+      db("bet")
+        .where("event_id", eventId)
+        .andWhere("win", null)
+        .then((bets) => {
+          var [w1, w2] = req.body.score.split(":");
+          let result;
+          if (+w1 > +w2) {
+            result = "w1";
+          } else if (+w2 > +w1) {
+            result = "w2";
+          } else {
+            result = "x";
+          }
+          db("event")
+            .where("id", eventId)
+            .update({ score: req.body.score })
+            .returning("*")
+            .then(([event]) => {
+              Promise.all(
+                bets.map((bet) => {
+                  if (bet.prediction == result) {
+                    db("bet").where("id", bet.id).update({
+                      win: true,
+                    });
+                    db("user")
+                      .where("id", bet.user_id)
+                      .then(([user]) => {
+                        return db("user")
+                          .where("id", bet.user_id)
+                          .update({
+                            balance:
+                              user.balance + bet.bet_amount * bet.multiplier,
+                          });
+                      });
+                  } else if (bet.prediction != result) {
+                    return db("bet").where("id", bet.id).update({
+                      win: false,
+                    });
+                  }
+                })
+              );
+              setTimeout(() => {
+                [
+                  "bet_amount",
+                  "event_id",
+                  "away_team",
+                  "home_team",
+                  "odds_id",
+                  "start_at",
+                  "updated_at",
+                  "created_at",
+                ].forEach((whatakey) => {
+                  var index = whatakey.indexOf("_");
+                  var newKey = whatakey.replace("_", "");
+                  newKey = newKey.split("");
+                  newKey[index] = newKey[index].toUpperCase();
+                  newKey = newKey.join("");
+                  event[newKey] = event[whatakey];
+                  delete event[whatakey];
+                });
+                res.send(event);
+              }, 1000);
+            });
+        });
+    } catch (err) {
+      next;
+    }
+  }
+);
+
+app.get("/stats", authMiddlewareAdmin, (req, res, next) => {
   try {
     res.send(stats);
   } catch (err) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
-    return;
+    next;
   }
+});
+
+app.use((err, req, res, next) => {
+  console.log(err);
+  res.status(500).send("Internal Server Error");
+  return;
 });
 
 const server = app.listen(port, () => {

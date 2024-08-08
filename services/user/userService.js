@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
-
+var ee = require("events");
+var statEmitter = new ee();
 class UserService {
   constructor({ userRepository }) {
     this._userRepository = userRepository;
@@ -11,21 +12,24 @@ class UserService {
     return user;
   }
 
-  async createUser(user) {
-    const [createdUser] = await this._userRepository.create(user);
+  // async createUser(user) {
+  //   const [createdUser] = await this._userRepository.create(user);
 
-    const accessToken = jwt.sign(
-      { id: user.id, type: user.type },
-      process.env.JWT_SECRET
-    );
+  //   createdUser.createdAt = createdUser.created_at;
+  //   delete createdUser.created_at;
+  //   createdUser.updatedAt = createdUser.updated_at;
+  //   delete createdUser.updated_at;
+  //   statEmitter.emit("newUser");
+  //   const result = {
+  //     ...createdUser,
+  //     accessToken: jwt.sign(
+  //       { id: result.id, type: result.type },
+  //       process.env.JWT_SECRET
+  //     ),
+  //   };
 
-    const result = {
-      ...createdUser,
-      accessToken,
-    };
-
-    return result;
-  }
+  //   return result;
+  // }
 }
 
 module.exports = UserService;

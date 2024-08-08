@@ -1,4 +1,6 @@
-const { createTransactionSchema } = require("../../schema/transactionSchema");
+const {
+  createTransactionSchema,
+} = require("../../../schema/transactionSchema");
 
 const validateTransactionCreate = (req, res, next) => {
   const { error } = createTransactionSchema.validate(req.body);
