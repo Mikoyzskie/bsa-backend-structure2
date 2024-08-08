@@ -29,7 +29,6 @@ const authMiddleware = async (req, res, next) => {
     tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
     req.tokenPayload = tokenPayload;
     next();
-    return res.send(tokenPayload);
   } catch (err) {
     return res.status(401).send({ error: "Not Authorized" });
   }

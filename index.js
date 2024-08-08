@@ -15,8 +15,15 @@ const {
 
 const { betValidation } = require("./middlewares/validations/bet.validation");
 const {
+  validateTransactionCreate,
+} = require("./middlewares/validations/transaction.validation");
+const {
   validateUserUpdate,
 } = require("./middlewares/validations/user.validation");
+const {
+  validateEventCreate,
+  validateEventUpdate,
+} = require("./middlewares/validations/event.validation");
 
 var dbConfig = require("./knexfile");
 var app = express();
@@ -97,31 +104,7 @@ app.post("/users", (req, res) => {
     });
 });
 
-app.put("/users/:id", authMiddleware, (req, res) => {
-  // let token = req.headers[`authorization`];
-  // let tokenPayload;
-  // if (!token) {
-  //   return res.status(401).send({ error: "Not Authorized" });
-  // }
-  // token = token.replace("Bearer ", "");
-  // try {
-  //   tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-  // } catch (err) {
-  //   return res.status(401).send({ error: "Not Authorized" });
-  // }
-  var schema = joi
-    .object({
-      email: joi.string().email(),
-      phone: joi.string().pattern(/^\+?3?8?(0\d{9})$/),
-      name: joi.string(),
-      city: joi.string(),
-    })
-    .required();
-  var isValidResult = schema.validate(req.body);
-  if (isValidResult.error) {
-    res.status(400).send({ error: isValidResult.error.details[0].message });
-    return;
-  }
+app.put("/users/:id", authMiddleware, validateUserUpdate, (req, res) => {
   if (req.params.id !== req.tokenPayload.id) {
     return res.status(401).send({ error: "UserId mismatch" });
   }
@@ -148,118 +131,58 @@ app.put("/users/:id", authMiddleware, (req, res) => {
     });
 });
 
-app.post("/transactions", (req, res) => {
-  var schema = joi
-    .object({
-      id: joi.string().uuid(),
-      userId: joi.string().uuid().required(),
-      cardNumber: joi.string().required(),
-      amount: joi.number().min(0).required(),
-    })
-    .required();
-  var isValidResult = schema.validate(req.body);
-  if (isValidResult.error) {
-    res.status(400).send({ error: isValidResult.error.details[0].message });
-    return;
-  }
-
-  let token = req.headers["authorization"];
-  if (!token) {
-    return res.status(401).send({ error: "Not Authorized" });
-  }
-  token = token.replace("Bearer ", "");
-  try {
-    var tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-    if (tokenPayload.type != "admin") {
-      throw new Error();
-    }
-  } catch (err) {
-    return res.status(401).send({ error: "Not Authorized" });
-  }
-
-  db("user")
-    .where("id", req.body.userId)
-    .then(([user]) => {
-      if (!user) {
-        res.status(400).send({ error: "User does not exist" });
-        return;
-      }
-      req.body.card_number = req.body.cardNumber;
-      delete req.body.cardNumber;
-      req.body.user_id = req.body.userId;
-      delete req.body.userId;
-      db("transaction")
-        .insert(req.body)
-        .returning("*")
-        .then(([result]) => {
-          var currentBalance = req.body.amount + user.balance;
-          db("user")
-            .where("id", req.body.user_id)
-            .update("balance", currentBalance)
-            .then(() => {
-              ["user_id", "card_number", "created_at", "updated_at"].forEach(
-                (whatakey) => {
-                  var index = whatakey.indexOf("_");
-                  var newKey = whatakey.replace("_", "");
-                  newKey = newKey.split("");
-                  newKey[index] = newKey[index].toUpperCase();
-                  newKey = newKey.join("");
-                  result[newKey] = result[whatakey];
-                  delete result[whatakey];
-                }
-              );
-              return res.send({
-                ...result,
-                currentBalance,
+app.post(
+  "/transactions",
+  validateTransactionCreate,
+  authMiddlewareAdmin,
+  (req, res) => {
+    db("user")
+      .where("id", req.body.userId)
+      .then(([user]) => {
+        if (!user) {
+          res.status(400).send({ error: "User does not exist" });
+          return;
+        }
+        req.body.card_number = req.body.cardNumber;
+        delete req.body.cardNumber;
+        req.body.user_id = req.body.userId;
+        delete req.body.userId;
+        db("transaction")
+          .insert(req.body)
+          .returning("*")
+          .then(([result]) => {
+            var currentBalance = req.body.amount + user.balance;
+            db("user")
+              .where("id", req.body.user_id)
+              .update("balance", currentBalance)
+              .then(() => {
+                ["user_id", "card_number", "created_at", "updated_at"].forEach(
+                  (whatakey) => {
+                    var index = whatakey.indexOf("_");
+                    var newKey = whatakey.replace("_", "");
+                    newKey = newKey.split("");
+                    newKey[index] = newKey[index].toUpperCase();
+                    newKey = newKey.join("");
+                    result[newKey] = result[whatakey];
+                    delete result[whatakey];
+                  }
+                );
+                return res.send({
+                  ...result,
+                  currentBalance,
+                });
               });
-            });
-        });
-    })
-    .catch((err) => {
-      res.status(500).send("Internal Server Error");
-      return;
-    });
-});
-
-app.post("/events", (req, res) => {
-  var schema = joi
-    .object({
-      id: joi.string().uuid(),
-      type: joi.string().required(),
-      homeTeam: joi.string().required(),
-      awayTeam: joi.string().required(),
-      startAt: joi.date().required(),
-      odds: joi
-        .object({
-          homeWin: joi.number().min(1.01).required(),
-          awayWin: joi.number().min(1.01).required(),
-          draw: joi.number().min(1.01).required(),
-        })
-        .required(),
-    })
-    .required();
-  var isValidResult = schema.validate(req.body);
-  if (isValidResult.error) {
-    res.status(400).send({ error: isValidResult.error.details[0].message });
-    return;
+          });
+      })
+      .catch((err) => {
+        res.status(500).send("Internal Server Error");
+        return;
+      });
   }
+);
 
+app.post("/events", validateEventCreate, authMiddlewareAdmin, (req, res) => {
   try {
-    var authKey = "authorization";
-    let token = req.headers[authKey];
-    if (!token) {
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-    token = token.replace("Bearer ", "");
-    try {
-      var tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-      if (tokenPayload.type != "admin") {
-        throw new Error();
-      }
-    } catch (err) {
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-
     req.body.odds.home_win = req.body.odds.homeWin;
     delete req.body.odds.homeWin;
     req.body.odds.away_win = req.body.odds.awayWin;
@@ -325,23 +248,9 @@ app.post("/events", (req, res) => {
   }
 });
 
-app.post("/bets", betValidation, (req, res) => {
-  let userId;
+app.post("/bets", betValidation, authMiddleware, (req, res) => {
+  let userId = req.tokenPayload.id;
   try {
-    var authorizationKey = "authorization";
-    let token = req.headers[authorizationKey];
-    if (!token) {
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-    token = token.replace("Bearer ", "");
-    try {
-      var tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-      userId = tokenPayload.id;
-    } catch (err) {
-      console.log(err);
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-
     req.body.event_id = req.body.eventId;
     req.body.bet_amount = req.body.betAmount;
     delete req.body.eventId;
@@ -433,37 +342,10 @@ app.post("/bets", betValidation, (req, res) => {
   }
 });
 
-app.put("/events/:id", (req, res) => {
-  var schema = joi
-    .object({
-      score: joi.string().required(),
-    })
-    .required();
-  var isValidResult = schema.validate(req.body);
-  if (isValidResult.error) {
-    res.status(400).send({ error: isValidResult.error.details[0].message });
-    return;
-  }
-
+app.put("/events/:id", validateEventUpdate, authMiddlewareAdmin, (req, res) => {
   try {
-    var authorization = `authorization`;
-    let token = req.headers[authorization];
-    if (!token) {
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-    token = token.replace("Bearer ", "");
-    try {
-      var tokenPayload = jwt.verify(token, process.env.JWT_SECRET);
-      if (tokenPayload.type != "admin") {
-        throw new Error();
-      }
-    } catch (err) {
-      console.log(err);
-      return res.status(401).send({ error: "Not Authorized" });
-    }
-
     var eventId = req.params.id;
-    console.log(eventId);
+
     db("bet")
       .where("event_id", eventId)
       .andWhere("win", null)
