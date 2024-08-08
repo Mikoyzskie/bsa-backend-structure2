@@ -1,4 +1,4 @@
-const { betSchema } = require("../../schema/betSchema");
+const { betSchema } = require("../../../schema/betSchema");
 
 const betValidation = (req, res, next) => {
   var isValidResult = betSchema.validate(req.body);

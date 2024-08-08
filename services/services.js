@@ -1,8 +1,16 @@
-const { userRepository } = require("../repositories/repositories");
+const {
+  userRepository,
+  transactionRepository,
+} = require("../repositories/repositories");
 const UserService = require("./user/userService");
+const TransactionService = require("./transactions/transactions.service");
 
 const userService = new UserService({
   userRepository,
 });
 
-module.exports = { userService };
+const transactionService = new TransactionService({
+  transactionRepository,
+});
+
+module.exports = { userService, transactionService };

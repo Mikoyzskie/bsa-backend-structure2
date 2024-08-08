@@ -1,5 +1,3 @@
-const jwt = require("jsonwebtoken");
-
 class UserService {
   constructor({ userRepository }) {
     this._userRepository = userRepository;
@@ -12,19 +10,15 @@ class UserService {
   }
 
   async createUser(user) {
-    const [createdUser] = await this._userRepository.create(user);
+    const createdUser = await this._userRepository.create(user);
 
-    const accessToken = jwt.sign(
-      { id: user.id, type: user.type },
-      process.env.JWT_SECRET
-    );
+    return createdUser;
+  }
 
-    const result = {
-      ...createdUser,
-      accessToken,
-    };
+  async updateById(id, user) {
+    const updatedUser = await this._userRepository.updateById(id, user);
 
-    return result;
+    return updatedUser;
   }
 }
 

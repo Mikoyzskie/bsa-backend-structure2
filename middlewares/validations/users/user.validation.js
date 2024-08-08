@@ -2,7 +2,7 @@ const {
   getUserByIdSchema,
   createUserSchema,
   updateUserSchema,
-} = require("../../schema/userSchema");
+} = require("../../../schema/userSchema");
 
 const validateUserId = (req, res, next) => {
   const { error } = getUserByIdSchema.validate(req.params);
@@ -13,7 +13,7 @@ const validateUserId = (req, res, next) => {
 };
 
 const validateUserCreate = (req, res, next) => {
-  const { error } = createUserSchema.validate(req.params);
+  const { error } = createUserSchema.validate(req.body);
   if (error) {
     return res.status(400).send({ error: error.details[0].message });
   }
