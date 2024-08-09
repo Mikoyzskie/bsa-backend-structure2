@@ -1,9 +1,5 @@
 var express = require("express");
 
-var jwt = require("jsonwebtoken");
-var joi = require("joi");
-const ee = require("events");
-
 const Router = express.Router();
 
 const { initApi } = require("./controllers/controller");
@@ -14,8 +10,6 @@ const {
   authMiddleware,
   authMiddlewareAdmin,
 } = require("./middlewares/authMiddleware");
-
-const { userService } = require("./services/services");
 
 const {
   EventValidation,
