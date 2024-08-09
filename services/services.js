@@ -3,7 +3,7 @@ const {
   transactionRepository,
 } = require("../repositories/repositories");
 const UserService = require("./user/userService");
-const TransactionService = require("./transactions/transactions.service");
+const TransactionService = require("./transactions/transaction.service");
 
 const userService = new UserService({
   userRepository,

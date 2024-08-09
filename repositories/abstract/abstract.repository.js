@@ -5,9 +5,17 @@ class AbstractRepository {
   }
 
   async getById(id) {
-    const [users] = await this.db(this.model).where({ id }).returning("*");
+    const [users] = await this.db(this.model).where("id", id).returning("*");
 
     return { ...users };
+  }
+
+  async updateUserBalance(id, balance) {
+    const result = await this.db(this.model)
+      .where("id", id)
+      .update("balance", balance);
+
+    return result;
   }
 
   create(data) {

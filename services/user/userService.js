@@ -15,6 +15,15 @@ class UserService {
     return createdUser;
   }
 
+  async updateBalanceByid(id, newBalance) {
+    const updatedBalance = await this._userRepository.updateUserBalance(
+      id,
+      newBalance
+    );
+
+    return updatedBalance;
+  }
+
   async updateById(id, user) {
     const updatedUser = await this._userRepository.updateById(id, user);
 

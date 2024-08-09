@@ -1,27 +1,25 @@
 const {
-  validateTransactionCreate,
-} = require("../../middlewares/validations/transactions/transaction.validation");
-
-const { statEmitter } = require("../../db/db");
-const {
-  authMiddlewareAdmin,
-  authMiddleware,
-} = require("../../middlewares/authMiddleware");
-
-const joi = require("joi");
+  TransactionValidation,
+} = require("../../middlewares/validations/validation");
 const jwt = require("jsonwebtoken");
+const { statEmitter } = require("../../db/db");
+const { authMiddlewareAdmin } = require("../../middlewares/authMiddleware");
 
-const initTransactions = (Router) => {
-  //   const { userService, transactionService } = services;
+const initTransaction = (Router, services) => {
+  const { userService, transactionService } = services;
   const router = Router;
 
   router.post(
     "/",
-
-    (req, res, next) => res.send(console.log("bullshit"))
+    TransactionValidation.transactionValidation,
+    authMiddlewareAdmin,
+    (req, res, next) => {
+      console.log(req.body);
+      next;
+    }
   );
 
   return router;
 };
 
-module.exports = { initTransactions };
+module.exports = { initTransaction };

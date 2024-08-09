@@ -3,10 +3,8 @@ class TransactionService {
     this._transactionRepository = transactionRepository;
   }
 
-  async createTransaction(transaction) {
-    const createdTransaction = await this._transactionRepository.create(
-      transaction
-    );
+  async createTransaction(data) {
+    const createdTransaction = await this._transactionRepository.create(data);
 
     return createdTransaction;
   }

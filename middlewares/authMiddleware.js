@@ -18,6 +18,7 @@ const authMiddlewareAdmin = async (req, res, next) => {
     return res.status(401).send({ error: "Not Authorized" });
   }
 };
+
 const authMiddleware = async (req, res, next) => {
   let token = req.headers[`authorization`];
   let tokenPayload;
