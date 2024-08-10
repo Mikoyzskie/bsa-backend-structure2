@@ -1,98 +1,34 @@
-var express = require("express");
+const express = require("express");
 
-const Router = express.Router();
+import { dbMiddleware } from "./src/middlewares/middlewares";
 
-const { initApi } = require("./controllers/controller");
+const userController = require("./controllers/userController");
+const transactionController = require("./controllers/transactionController");
+const eventController = require("./controllers/eventController");
+const betController = require("./controllers/betController");
+const authMiddleware = require("./middlewares/authMiddleware");
+const { statEmitter } = require("./utils/eventEmitter");
 
-const { statEmitter, stats, db } = require("./db/db");
-
-const {
-  authMiddleware,
-  authMiddlewareAdmin,
-} = require("./middlewares/authMiddleware");
-
-const {
-  EventValidation,
-  BetValidation,
-  TransactionValidation,
-} = require("./middlewares/validations/validation");
-
-const { transactionRepo } = require("./repositories/transactionRepo");
-const { eventPostRepo } = require("./repositories/eventPostRepo");
-const { eventPutRepo } = require("./repositories/eventPutRepo");
-const { betRepo } = require("./repositories/betRepo");
-
-var app = express();
-
-var port = 4066;
+const app = express();
+const port = 4066;
 
 app.use(express.json());
-app.use((uselessRequest, uselessResponse, neededNext) => {
-  db.raw("select 1+1 as result")
-    .then(function () {
-      neededNext();
-    })
-    .catch(() => {
-      throw new Error("No db connection");
-    });
-});
+app.use(dbMiddleware);
 
-app.get("/health", (req, res) => {
-  res.send("Hello World!");
-});
+app.get("/health", (req, res) => res.send("Hello World!"));
 
-app.use("/", initApi(Router));
-
-app.post(
-  "/transactions",
-  TransactionValidation.transactionValidation,
-  authMiddlewareAdmin,
-  transactionRepo
-);
-
-app.post(
-  "/events",
-  EventValidation.validateEventCreate,
-  authMiddlewareAdmin,
-  eventPostRepo
-);
-
-app.post("/bets", BetValidation.betValidation, authMiddleware, betRepo);
-
-app.put(
-  "/events/:id",
-  EventValidation.validateEventUpdate,
-  authMiddlewareAdmin,
-  eventPutRepo
-);
-
-app.get("/stats", authMiddlewareAdmin, (req, res, next) => {
-  try {
-    res.send(stats);
-  } catch (err) {
-    next;
-  }
-});
-
-app.use((err, req, res, next) => {
-  console.log(err);
-  res.status(500).send("Internal Server Error");
-  return;
-});
+app.use("/users", userController);
+app.use("/transactions", transactionController);
+app.use("/events", eventController);
+app.use("/bets", betController);
+app.use("/stats", authMiddleware.adminOnly, (req, res) => res.send(stats));
 
 const server = app.listen(port, () => {
-  statEmitter.on("newUser", () => {
-    stats.totalUsers++;
-  });
-  statEmitter.on("newBet", () => {
-    stats.totalBets++;
-  });
-  statEmitter.on("newEvent", () => {
-    stats.totalEvents++;
-  });
-
   console.log(`App listening at http://localhost:${port}`);
 });
 
-// Do not change this line
+statEmitter.on("newUser", () => stats.totalUsers++);
+statEmitter.on("newBet", () => stats.totalBets++);
+statEmitter.on("newEvent", () => stats.totalEvents++);
+
 module.exports = { app, server };
